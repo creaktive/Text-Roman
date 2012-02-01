@@ -1,0 +1,4 @@
+.build/
+Text-Roman-*/
+*.bak
+*.gz

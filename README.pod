@@ -1,0 +1,87 @@
+=pod
+
+=encoding utf8
+
+=head1 NAME
+
+Text::Roman - Converts Roman algorism to integer numbers and the contrary, recognize algorisms
+
+=head1 VERSION
+
+version 3.02
+
+=head1 SYNOPSIS
+
+    use Text::Roman;
+
+    my $roman = "XXXV";
+    my $mroman = 'L_X_XXIII';
+    print roman(123), "\n";
+    print roman2int($roman), "\n" if isroman($roman);
+    print mroman2int($mroman), "\n" if ismroman($mroman);
+
+=head1 DESCRIPTION
+
+C<Text::Roman::roman()> is a very simple algorism converter.
+It converts a single integer (in Arabic algorisms) at a time to its Roman correspondent.
+The conventional Roman numbers goes from 1 up to 3999. MROMANS (milhar romans) range is 1 up to I<3999 * 1000 + 3999 = 4002999>.
+
+There is no concern for mix cases, like 'Xv', 'XiiI', as legal Roman algorism numbers.
+
+=head1 FUNCTIONS
+
+=head2 roman2int($str)
+
+Return '' if C<$str> is not Roman or return integer if it is.
+
+=head2 mroman2int($str)
+
+Return '' if C<$str> is not Roman or return integer if it is.
+(milhar support)
+
+=head2 ismroman($str)
+
+Verify whether the given string is a milhar Roman number, if it is return 1; if it is not return 0.
+
+=head2 isroman($str)
+
+Verify whether the given string is a conventional Roman number, if it is return 1; if it is not return 0.
+
+=head2 roman($int)
+
+Return string containing the Roman corresponding to the given integer, or '' if the integer is out of domain.
+
+=for Pod::Coverage roman_stx
+roman_div
+roman_do
+
+=head1 SPECIFICATION
+
+Roman number has origin in following BNF-like formula:
+
+    a = I{1,3}
+    b = V\a?|IV|\a
+    e = X{1,3}\b?|X{0,3}IX|\b
+    ee = IX|\b
+    f = L\e?|XL\ee?|\e
+    g = C{1,3}\f?|C{0,3}XC\ee?|\f
+    gg = XC\ee?|\f
+    h = D\g?|CD\gg?|\g
+    j = M{1,3}\h?|M{0,3}CM\gg?|\h
+
+=head1 REFERENCES
+
+Specification supplied by redactor's manual of newspaper "O Estado de São Paulo".
+URL: L<http://web.archive.org/web/20020819094718/http://www.estado.com.br/redac/norn-nro.html>
+
+=head1 AUTHOR
+
+Stanislaw Pusep <stas@sysd.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2000 by Peter de Padua Krauss <krauss@ifqsc.sc.usp.br>.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
