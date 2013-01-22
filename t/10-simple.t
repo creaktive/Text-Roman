@@ -2,14 +2,16 @@
 use strict;
 use warnings qw(all);
 
-use Test::More tests => 6;
+use Test::More;
 
-use_ok('Text::Roman');
+use Text::Roman qw(:all);
 
 ok(isroman('DCLXVI'), 'isroman');
-ok(ismroman('L_X_XXIII'), 'ismroman');
+ok(ismilhar('L_X_XXIII'), 'ismilhar');
 
-ok(roman2int('DCLXVI') == 666, 'roman2int');
-ok(mroman2int('L_X_XXIII') == 60023, 'mroman2int');
+is(roman2int('DCLXVI'), 666, 'roman2int');
+is(milhar2int('L_X_XXIII'), 60023, 'milhar2int');
 
-ok(roman(666) eq 'DCLXVI', 'roman');
+is(int2roman(666), 'DCLXVI', 'int2roman');
+
+done_testing 5;

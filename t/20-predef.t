@@ -4,7 +4,7 @@ use warnings qw(all);
 
 use Test::More;
 
-use_ok('Text::Roman');
+use Text::Roman qw(:all);
 
 my $i = 0;
 while (<DATA>) {
@@ -12,13 +12,13 @@ while (<DATA>) {
 
     ok($int && $roman, 'pair');
     ok(isroman($roman), 'isroman');
-    ok(roman($int) eq $roman, 'roman');
-    ok(roman2int($roman) == $int, 'roman2int');
+    is(int2roman($int), $roman, 'int2roman');
+    is(roman2int($roman), $int, 'roman2int');
 
     ++$i;
 }
 
-done_testing(1 + 4 * $i);
+done_testing 4 * $i;
 
 __DATA__
 26	XXVI

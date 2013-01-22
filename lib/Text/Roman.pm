@@ -1,494 +1,228 @@
 package Text::Roman;
-# ABSTRACT: Converts Roman digits to integer numbers and the contrary, recognize digits
+# ABSTRACT: Allows conversion between Roman and Arabic algarisms.
 
 =head1 SYNOPSIS
 
-    use Text::Roman;
+    #!/usr/bin/env perl
+    use strict;
+    use warnings;
+    use Text::Roman qw(:all);
+
+    print int2roman(123), "\n";
 
     my $roman = "XXXV";
-    my $mroman = 'L_X_XXIII';
-    print roman(123), "\n";
     print roman2int($roman), "\n" if isroman($roman);
-    print mroman2int($mroman), "\n" if ismroman($mroman);
+
+    my $milhar = 'L_X_XXIII'; # = 60,023
+    print milhar2int($milhar), "\n" if ismilhar($milhar);
 
 =head1 DESCRIPTION
 
-C<Text::Roman::roman()> is a very simple digit converter.
-It converts a single integer (in Arabic digits) at a time to its Roman correspondent.
-The conventional Roman numbers goes from 1 up to 3999. MROMANS (milhar romans) range is 1 up to I<3999 * 1000 + 3999 = 4002999>.
+This package supports both conventional Roman algarisms (which range from I<1> to I<3999>) and Milhar Romans, a variation which uses a bar across the algarism to indicate multiplication by I<1_000>.
+For the purposes of this module, acceptable syntax consists of an underscore suffixed to the algarism e.g. IV_V = I<4_005>.
+The term Milhar apparently derives from the Portuguese word for "thousands" and the range of this notation extends the range of Roman numbers to I<3999 * 1000 + 3999 = 4_002_999>.
 
-There is no concern for mix cases, like 'Xv', 'XiiI', as legal Roman digit numbers.
+Note: the functions in this package treat Roman algarisms in a case-insensitive manner such that "VI" == "vI" == "Vi" == "vi".
+
+The following functions may be imported into the caller package by name:
 
 =cut
 
 use strict;
 use warnings qw(all);
 
+use Carp qw(carp);
+use Exporter;
+
 ## no critic (ProhibitAutomaticExportation, ProhibitExplicitISA)
-our @ISA = qw(Exporter);
-our @EXPORT = qw(roman int2roman roman2int isroman mroman2int milhar2int ismroman ismilhar);
+our @ISA            = qw(Exporter);
+our %EXPORT_TAGS    = (all => [qw(roman int2roman roman2int isroman mroman2int milhar2int ismroman ismilhar)]);
+our @EXPORT_OK      = @{$EXPORT_TAGS{all}};
 
 # VERSION
 
-my @alg = split '', 'IVXLCDM';
-my @alginf = (-1, 0, 0, 2, 2, 4, 4);
-my %parsub = (
-    IV  => 'A',
-    IX  => 'B',
-    XL  => 'E',
-    XC  => 'F',
-    CD  => 'G',
-    CM  => 'H',
-);
-my %val = (
-    I   => 1,
-    V   => 5,
-    X   => 10,
-    L   => 50,
-    C   => 100,
-    D   => 500,
-    M   => 1000,
-    A   => 4,
-    B   => 9,
-    E   => 40,
-    F   => 90,
-    G   => 400,
-    H   => 900,
-);
-my %maxpos = (
-    I   => 2,
-    V   => 3,
-    X   => 29,
-    L   => 39,
-    C   => 299,
-    D   => 399,
-    M   => 2999,
-    A   => 0,
-    B   => 0,
-    E   => 9,
-    F   => 9,
-    G   => 99,
-    H   => 99,
-);
+our @RSN = qw/I V X L C D M/;                           # Roman Simple Numerals
+our @RCN = qw/IV IX XL XC CD CM/;                       # Roman Complex Numerals
+our %R2A;
+@R2A{@RSN, @RCN} = qw/
+    1 5 10 50 100 500 1000 4 9 40 90 400 900
+/;                                                      # numeric values
+our %A2R = reverse %R2A;                                # reverse for convenience
 
-my @valg;
-for my $i (0 .. $#alg){
-    $valg[$i] = $val{$alg[$i]};
-}
+=func isroman
 
-=for Pod::Coverage
-roman_stx
-roman_div
-roman_do
+Tests a string to be a valid Roman algarism.
+Returns a boolean value.
+
 =cut
 
-sub roman_stx {
-    my $x   = shift;
-    my $aux = $$x;
+sub isroman {
+    local $_ = shift || $_;                             # roman algarism
 
-    $$x = uc $$x;
-    if ($$x eq $aux || lc $$x eq $aux){
-        if ($$x =~ /^[IXCMVLD]+$/x && $$x !~ /([IXCM])\1{3,}|([VLD])\2+/x) {
-            $$x =~ s/(IV|IX|XL|XC|CD|CM)/$parsub{$1}/gx;
-            return $$x !~ /[AB].*?I|[EF].*?X|[GH].*?C/x;
-        } else {
-            return '';
-        }
-    } else {
-        return '';
+    return if !/^[@RSN]+$/x;
+    return if /([IXCM])\1{3,}|([VLD])\2+/ix;            # tests repeatability
+    my @re = qw/IXI|XCX|CMC/;
+    for (1 .. $#RSN) {
+        push @re, "$RSN[$_ - 1]$RSN[$_]$RSN[$_ - 1]";   # tests IVI
+        push @re, "$RSN[$_]$RSN[$_ - 1]$RSN[$_]";       # and VIV conditions
     }
+    my $re = join "|", @re;
+    return !/$re/x;
 }
 
-=func roman2int($str)
+=func int2roman
 
-Return '' if C<$str> is not Roman or return integer if it is.
+Converts an integer expressed in Arabic numerals, to its corresponding Roman algarism.
+If the integer provided is out of the range expressible in Roman notation, an I<undef> is returned.
+
+=cut
+
+sub int2roman {
+    my $n = shift || $_;                                # number, arabic numerals
+    return if $n <= 0 or $n >= 4000;
+
+    my $ret = "";
+    for (reverse sort { $a <=> $b } values %R2A) {
+        $ret .= $A2R{$_} x int($n / $_);
+        $n %= $_;
+    }
+    return $ret;
+}
+
+=func roman2int
+
+Does the converse of L</int2roman>, converting a Roman algarism to its integer value.
 
 =cut
 
 sub roman2int {
-    my $x = shift;
-    my ($at, $i);
-    my $val = 0;
-    my $ant = 0;
-    my @U;
+    local $_ = uc(shift || $_);                         # roman algarism
 
-    if (roman_stx(\$x)){
-        @U = split('', $x);
-        for ($i = $#U; $i >= 0; $i--) {
-            $at = $val{$U[$i]};
-            return '' if ($at < $ant);
-            $val += $at;
-            $ant = $at;
-        }
-        return $val;
-    } else {
-        return '';
+    return unless isroman();
+
+    my ($r, $ret, $_ret) = ($_, 0, 0);
+    while ($r) {
+        ## no critic (ProhibitMatchVars)
+        $r =~ s/^$_//x && ($ret += $R2A{$&}, last) for @RCN, @RSN;
+        return if $ret <= $_ret;
+        $_ret = $ret;
     }
+    return $ret;
 }
 
-=func mroman2int($str) / milhar2int($str)
+=func ismilhar
 
-Return '' if C<$str> is not Roman or return integer if it is.
-(milhar support)
+Determines whether a string qualifies as a Milhar Roman algarism.
 
 =cut
 
-# allows '_' milhar syntax (LX_XXIII, L_X_XXIII)
-sub milhar2int { return mroman2int(shift) }
-sub mroman2int {
-    my $x = shift;
-    my $s = 0;
-    my ($sroman, $aux);
-    my $y = '';
-    my @partes;
+sub ismilhar {
+    local $_ = shift || $_;
+    return unless /^[_@RSN]+$/x;
 
-    @partes = split('_', $x);
-    $sroman = pop @partes;
-    for my $i (@partes){
-        $y .= $i;
-    }
-    $aux = roman2int($y);
-    return '' if ($y =~ /^(I{1,3})$/x || !$aux);
-    $s += $aux * 1000;
-    $aux = roman2int($sroman);
-    return '' if (!$aux);
-    return $s + $aux;
+    my @r = split /_/;
+    isroman() || return for @r;
+    return 1;
 }
 
-=func ismroman($str) / ismilhar($str)
+=func milhar2int
 
-Verify whether the given string is a milhar Roman number, if it is return 1; if it is not return 0.
+Converts a Milhar Roman algarism to an integer.
 
 =cut
 
-# allows '_' milhar syntax (LX_XXIII, L_X_XXIII)
-sub ismilhar { return ismroman(shift) }
+sub milhar2int {
+    local $_ = shift || $_;
+
+    return unless ismilhar();
+
+    my @r = split /_/;
+    my $ret = roman2int(pop @r);
+    $ret += 1000 * roman2int() for @r;
+    return $ret;
+}
+
+=func ismroman/mroman2int/roman
+
+These functions belong to the module's old interface and are considered deprecated.
+Do not use them in new code and they will eventually be discontinued; they map as follows:
+
+=for :list
+* ismroman      => B<ismilhar>
+* mroman2int    => B<milhar2int>
+* roman         => B<int2roman>
+
+=cut
+
 sub ismroman {
-    my $x = shift;
-    my ($sroman);
-    my $y = '';
-    my @partes;
-
-    if ($x =~ /^[_IXCMVLD]+$/x) {
-        @partes = split('_', $x);
-        $sroman = pop @partes;
-        for my $i (@partes) {
-            $y .= $i;
-        }
-        return '' if ($y =~ /^(I{1,3})$/x || !isroman($y));
-        return isroman($sroman);
-    }
+    carp "deprecated function, use ismilhar instead";
+    return ismilhar(shift);
 }
 
-=func isroman($str)
-
-Verify whether the given string is a conventional Roman number, if it is return 1; if it is not return 0.
-
-=cut
-
-# same efect that (roman2int($x)>0), but fasted
-sub isroman {
-    my $x = shift;
-    my $y = $x;
-    $x = uc $x;
-
-    ## no critic (ProhibitComplexRegexes)
-    return ($x eq $y || lc $x eq $y) && $x =~ /
-        ^(M{1,3}(D(C{1,3}(L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3})))?|
-        C{0,3}XC(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))))?|
-        CD(XC(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))))?|
-        (C{1,3}(L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3})))?|
-        C{0,3}XC(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3})))))?|
-        M{0,3}CM(XC(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))))?|
-        (D(C{1,3}(L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3})))?|
-        C{0,3}XC(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))))?|
-        CD(XC(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))))?|
-        (C{1,3}(L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3})))?|
-        C{0,3}XC(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (L(X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        XL(IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))?|
-        (X{1,3}(VI{0,3}|
-        IV|
-        I{1,3})?|
-        X{0,3}IX|
-        (VI{0,3}|
-        IV|
-        I{1,3}))))))$
-    /x;
+sub mroman2int {
+    carp "deprecated function, use milhar2int instead";
+    return milhar2int(shift);
 }
 
-sub roman_div {
-    my ($a, $b) = @_;
-    my $inf = $alginf[$b];
-
-    if ($b < 0) {
-        return (0, -1);
-    } elsif (int($a / $valg[$b]) > 0) {
-        return ($b, -1);
-    } elsif ($a + $valg[$inf] >= $valg[$b]) {
-        return ($b, $inf);
-    } else {
-        return roman_div($a, $b - 1);
-    }
-}
-
-sub roman_do {
-    my ($x, $str_x) = @_;
-    my ($aux, $inf);
-
-    ($aux, $inf) = roman_div($x, $#alg);
-    if ($x > 0 && $inf < 0) {
-        return roman_do($x - $valg[$aux], $str_x . $alg[$aux]);
-    } elsif ($x > 0 && $inf >= 0) {
-        return roman_do($x + $valg[$inf] - $valg[$aux], $str_x . $alg[$inf] . $alg[$aux]);
-    } else {
-        return $str_x;
-    }
-}
-
-=func roman($int) / int2roman($int)
-
-Return string containing the Roman corresponding to the given integer, or '' if the integer is out of domain.
-
-=cut
-
-sub int2roman { return roman(shift) }
 sub roman {
-    my ($x) = @_;
-    if ($x < 1 || $x > 3999){
-        return '';
-    } else {
-        return roman_do($x, "");
-    }
+    carp "deprecated function, use int2roman instead";
+    return int2roman(shift);
 }
 
 1;
 
 __END__
 
+=head1 CHANGES
+
+Some changes worth noting from this module's previous incarnation:
+
+=over
+
+=item I<namespace imports>
+
+The call to B<use> must now explicitly request function names imported into it's namespace.
+
+=item I<argument defaults/void context>
+
+All functions now will operate on B<$_> when no arguments are passed, and will set B<$_> when called in a void context.
+This allows for writing code like:
+
+    @x = qw/V III XI IV/;
+    roman2int() for @x;
+    print join("-", @x);
+
+instead of the uglier:
+
+    @x = qw/V III XI IV/;
+    $_ = roman2int($_) for @x;
+    print join("-", @x);
+
+=back
+
 =head1 SPECIFICATION
 
-Roman number has origin in following BNF-like formula:
+Roman algarisms may be described using the following BNF-like formula:
 
-    a = I{1,3}
-    b = V\a?|IV|\a
-    e = X{1,3}\b?|X{0,3}IX|\b
-    ee = IX|\b
-    f = L\e?|XL\ee?|\e
-    g = C{1,3}\f?|C{0,3}XC\ee?|\f
-    gg = XC\ee?|\f
-    h = D\g?|CD\gg?|\g
-    j = M{1,3}\h?|M{0,3}CM\gg?|\h
+    a   = I{1,3}
+    b   = V\a?|IV|\a
+    e   = X{1,3}\b?|X{0,3}IX|\b
+    ee  = IX|\b
+    f   = L\e?|XL\ee?|\e
+    g   = C{1,3}\f?|C{0,3}XC\ee?|\f
+    gg  = XC\ee?|\f
+    h   = D\g?|CD\gg?|\g
+    j   = M{1,3}\h?|M{0,3}CM\gg?|\h
 
 =head1 REFERENCES
 
-Specification supplied by redactor's manual of newspaper "O Estado de São Paulo".
-URL: L<http://web.archive.org/web/20020819094718/http://www.estado.com.br/redac/norn-nro.html>
+For a description of the Roman numeral system see: L<http://www.novaroma.org/via_romana/numbers.html>.
+A reference to Milhar Roman alagarisms (in Portuguese) may be found at: L<http://web.archive.org/web/20020819094718/http://www.estado.com.br/redac/norn-nro.html>.
 
-=cut
+=head1 ACKNOWLEDGEMENTS
+
+This module was originally written by Peter de Padua Krauss and submitted to CPAN by L<Stanislaw Pusep|https://metacpan.org/author/SYP> who has relinquished control to L<Erick Calder|https://metacpan.org/author/ECALDER> since the original author has never maintained it and can no longer be reached.
+
+Erick have completely rewritten the module, implementing simpler algorithms to perform the same functionality, adding a test suite, a Changes file, etc. and providing more comprehensive documentation.
+
+Ten years later, Stanislaw returned as a maintainer.
