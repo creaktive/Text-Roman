@@ -1,4 +1,8 @@
-.build/
-Text-Roman-*/
+.build/*
+Text-Roman-*/*
+blib/*
 *.bak
 *.gz
+Makefile
+pm_to_blib
+nytprof*

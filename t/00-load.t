@@ -1,11 +1,11 @@
 #!perl
 use strict;
-use warnings;
+use warnings qw(all);
 
 use Test::More tests => 1;
 
 BEGIN {
-    use_ok('Text::Roman');
-}
+    use_ok(q(Text::Roman));
+};
 
-diag("Testing Text::Roman v$Text::Roman::VERSION, Perl $], $^X");
+diag(qq(Text::Roman v$Text::Roman::VERSION, Perl $], $^X));

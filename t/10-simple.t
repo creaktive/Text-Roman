@@ -1,7 +1,6 @@
 #!perl
 use strict;
-use utf8;
-use warnings 'all';
+use warnings qw(all);
 
 use Test::More tests => 6;
 
