@@ -102,8 +102,7 @@ sub roman2int {
 
     my ($r, $ret, $_ret) = ($_, 0, 0);
     while ($r) {
-        ## no critic (ProhibitMatchVars)
-        $r =~ s/^$_//x && ($ret += $R2A{$&}, last) for @RCN, @RSN;
+        $r =~ s/^$_//x and ($ret += $R2A{$_}, last) for @RCN, @RSN;
         return if $ret <= $_ret;
         $_ret = $ret;
     }
