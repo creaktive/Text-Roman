@@ -33,7 +33,6 @@ use warnings qw(all);
 
 use Carp qw(carp);
 use Exporter;
-use Scalar::Util qw(looks_like_number);
 
 ## no critic (ProhibitAutomaticExportation, ProhibitExplicitISA)
 our @ISA            = qw(Exporter);
@@ -82,7 +81,7 @@ If the integer provided is out of the range expressible in Roman notation, an I<
 sub int2roman {
     my $n = @_ ? shift : $_;
     return
-        if not looks_like_number($n)
+        if not $n =~ /^[0-9]+$/x
         or $n <= 0
         or $n >= 4000;
 
