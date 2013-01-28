@@ -8,7 +8,7 @@ Text::Roman - Allows conversion between Roman and Arabic algarisms.
 
 =head1 VERSION
 
-version 3.4
+version 3.5
 
 =head1 SYNOPSIS
 
