@@ -2,6 +2,7 @@
 use strict;
 use warnings qw(all);
 
+use Carp qw(croak);
 use Test::Simple tests => 7;
 
 use Text::Roman qw/isroman roman2int int2roman ismilhar milhar2int/;
@@ -15,7 +16,7 @@ $r[$_] = int2roman($_) for 1 .. $n;
 ok(1, "array created");
 for (1 .. $n) {
     my $ar;
-    die "$_: $r[$_] != $ar" unless ($ar = roman2int($r[$_])) == $_;
+    croak "$_: $r[$_] != $ar" unless ($ar = roman2int($r[$_])) == $_;
 }
 ok(1, "reciprocity tested");
 
