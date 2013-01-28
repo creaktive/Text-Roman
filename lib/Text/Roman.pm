@@ -153,19 +153,22 @@ Do not use them in new code and they will eventually be discontinued; they map a
 
 =cut
 
-sub ismroman {
-    carp "deprecated function, use ismilhar instead";
-    return ismilhar(shift);
-}
+my %deprecated = (
+    ismroman    => [ ismilhar   => \&ismilhar   ],
+    mroman2int  => [ milhar2int => \&milhar2int ],
+    roman       => [ int2roman  => \&int2roman  ],
+);
 
-sub mroman2int {
-    carp "deprecated function, use milhar2int instead";
-    return milhar2int(shift);
-}
-
-sub roman {
-    carp "deprecated function, use int2roman instead";
-    return int2roman(shift);
+for my $aliased (keys %deprecated) {
+    ## no critic (ProhibitNoStrict)
+    no strict 'refs';
+    *{'Text::Roman::' . $aliased} = sub {
+        carp sprintf(
+            '%s() deprecated, use %s() instead',
+            $aliased, $deprecated{$aliased}->[0]
+        );
+        goto $deprecated{$aliased}->[1];
+    };
 }
 
 1;
