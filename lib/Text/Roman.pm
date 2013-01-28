@@ -33,6 +33,7 @@ use warnings qw(all);
 
 use Carp qw(carp);
 use Exporter;
+use Scalar::Util qw(looks_like_number);
 
 ## no critic (ProhibitAutomaticExportation, ProhibitExplicitISA)
 our @ISA            = qw(Exporter);
@@ -56,11 +57,12 @@ Returns a boolean value.
 
 =cut
 
+## no critic (RequireArgUnpacking)
 sub isroman {
-    local $_ = shift || $_;                             # roman algarism
+    local $_ = uc(@_ ? shift : $_);
 
     return if !/^[@RSN]+$/x;
-    return if /([IXCM])\1{3,}|([VLD])\2+/ix;            # tests repeatability
+    return if /([IXCM])\1{3,}|([VLD])\2+/x;             # tests repeatability
     my @re = qw/IXI|XCX|CMC/;
     for (1 .. $#RSN) {
         push @re, "$RSN[$_ - 1]$RSN[$_]$RSN[$_ - 1]";   # tests IVI
@@ -78,15 +80,21 @@ If the integer provided is out of the range expressible in Roman notation, an I<
 =cut
 
 sub int2roman {
-    my $n = shift || $_;                                # number, arabic numerals
-    return if $n <= 0 or $n >= 4000;
+    my $n = @_ ? shift : $_;
+    return
+        if not looks_like_number($n)
+        or $n <= 0
+        or $n >= 4000;
 
-    my $ret = "";
+    my $ret = '';
     for (reverse sort { $a <=> $b } values %R2A) {
         $ret .= $A2R{$_} x int($n / $_);
         $n %= $_;
     }
-    return $ret;
+
+    return defined(wantarray)
+        ? $ret
+        : $_ = $ret;
 }
 
 =func roman2int
@@ -96,17 +104,23 @@ Does the converse of L</int2roman>, converting a Roman algarism to its integer v
 =cut
 
 sub roman2int {
-    local $_ = uc(shift || $_);                         # roman algarism
+    my $ret = 0;
+    do {
+        local $_ = uc(@_ ? shift : $_);
 
-    return unless isroman();
+        return unless isroman();
 
-    my ($r, $ret, $_ret) = ($_, 0, 0);
-    while ($r) {
-        $r =~ s/^$_//x and ($ret += $R2A{$_}, last) for @RCN, @RSN;
-        return if $ret <= $_ret;
-        $_ret = $ret;
-    }
-    return $ret;
+        my ($r, $_ret) = ($_, 0);
+        while ($r) {
+            $r =~ s/^$_//x and ($ret += $R2A{$_}, last) for @RCN, @RSN;
+            return if $ret <= $_ret;
+            $_ret = $ret;
+        }
+    };
+
+    return defined(wantarray)
+        ? $ret
+        : $_ = $ret;
 }
 
 =func ismilhar
@@ -116,7 +130,7 @@ Determines whether a string qualifies as a Milhar Roman algarism.
 =cut
 
 sub ismilhar {
-    local $_ = shift || $_;
+    local $_ = uc(@_ ? shift : $_);
     return unless /^[_@RSN]+$/x;
 
     my @r = split /_/;
@@ -131,14 +145,20 @@ Converts a Milhar Roman algarism to an integer.
 =cut
 
 sub milhar2int {
-    local $_ = shift || $_;
+    my $ret;
+    do {
+        local $_ = uc(@_ ? shift : $_);
 
-    return unless ismilhar();
+        return unless ismilhar();
 
-    my @r = split /_/;
-    my $ret = roman2int(pop @r);
-    $ret += 1000 * roman2int() for @r;
-    return $ret;
+        my @r = split /_/;
+        $ret = roman2int(pop @r);
+        $ret += 1000 * roman2int() for @r;
+    };
+
+    return defined(wantarray)
+        ? $ret
+        : $_ = $ret;
 }
 
 =func ismroman/mroman2int/roman
