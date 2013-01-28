@@ -7,14 +7,16 @@ use Text::Roman qw(ismilhar milhar2int);
 # Filter text, replacing Roman numerals by Arabic equivalent
 
 while (<>) {
+    my $n;
     s/
         \b
-        ([IVXLCDM_]+)
+        ([IVXLCDM_]{2,})
         \b
     /
-        ismilhar(uc $1)
-            ? milhar2int(uc $1)
-            : $1
+        (
+            ismilhar($1)
+            and defined($n = milhar2int($1))
+        ) ? $n : $1
     /egix;
 
     print;
